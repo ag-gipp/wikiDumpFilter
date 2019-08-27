@@ -1,4 +1,5 @@
 #Do not confuse wikiFilter.py with http://wikifilter.sourceforge.net, these projects are completely unrelated to each other.
+#credits go to https://github.com/physikerwelt/wikiFilter
 #!/usr/bin/python
 import os
 import bz2
