@@ -192,6 +192,9 @@ def split_xml(filename, splitsize, dir, tags, template, keywords):
     one (or multiple) chunks of splitsize in the given directory. The chunks consist of every page that has either
     one of the given keywords or one of the given tags in it."""
 
+    if not os.path.isfile(filename):
+        print("File %s does not exist." % filename)
+        return
     # Check and create chunk diretory
     if not os.path.exists(dir):
         os.mkdir(dir)
@@ -354,5 +357,5 @@ if __name__ == '__main__':  # When the script is self run
             current_keywords += lang_with_titles[language]  # add titles as keywords
 
         split_xml(filename, args.size, args.dir, tags, args.template, current_keywords)
-
+exit(0)
 # todo: Remove found titles from keywords to speed the program up ~2 times.
