@@ -207,7 +207,8 @@ def split_xml(filename, splitsize, dir, tags, template, keywords, args):
         if pagecount > splitsize:
             if args > 1:
                 print(
-                    "New bz2-file number " + pagecount + " since number of matched pages reached splitsize = " + splitsize)
+                    "New bz2-file number " + pagecount + " since number of matched pages reached splitsize = " +
+                    splitsize)
             chunkfile.write(footer)
             chunkfile.close()
             pagecount = 0  # reset pagecount
@@ -242,5 +243,19 @@ def split_xml(filename, splitsize, dir, tags, template, keywords, args):
                           "are already filtered and this page does not contain a formula.")
                 except Exception as e:
                     print(e)
+
+
+def run_filter(args):
+    tags, keywords, languages, lang_with_titles, filenames = \
+        process_user_input(args.keywords, args.keyword_file, args.QID_file, args.filenames, args.tags, args.dir,
+                           args.verbosity_level)
+    for filename in filenames:
+        language = filename.split("wiki")[0]
+
+        current_keywords = keywords[:]
+        if args.QID_file != '':
+            current_keywords += lang_with_titles[language]  # add titles as keywords
+
+        split_xml(filename, args.size, args.dir, tags, args.template, current_keywords, args.verbosity_level)
 
 # todo: Remove found titles from keywords to speed the program up ~2 times.
