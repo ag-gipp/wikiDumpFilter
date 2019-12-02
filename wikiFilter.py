@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-import os
-import bz2
 import argparse
+import bz2
+import os
 import re
 from html import unescape
+from os import path
 from sys import exit
 from urllib.request import Request, urlopen
 
@@ -203,23 +204,24 @@ def split_xml(filename, splitsize, dir, tags, template, keywords):
     filecount = 1
     ismatch = -1
     header = ""
-    footer = "</mediawiki>"
+    footer = b"</mediawiki>"
     tempstr = ""
     titles_found = []
     # open chunkfile in write mode
-    chunkname = lambda filecount: os.path.join(dir, filename + " chunk-" + str(filecount) + ".xml.bz2")
+    chunkname = lambda filecount: os.path.join(dir, path.basename(filename) + "-chunk-" + str(filecount) + ".xml.bz2")
     chunkfile = bz2.BZ2File(chunkname(filecount), 'w')
     # Read line by line
     bzfile = bz2.BZ2File(filename)
 
     # the header
     for line in bzfile:
+        line = line.decode('utf-8')
         header += line
         if '</siteinfo>' in line:
             break
     if args.verbosity_level > 0:
         print(header)
-    chunkfile.write(header)
+    chunkfile.write(header.encode('utf-8'))
     # and the rest
     for line in bzfile:
         try:
@@ -280,16 +282,16 @@ def split_xml(filename, splitsize, dir, tags, template, keywords):
             filecount += 1  # increment filename
             chunkfile = bz2.BZ2File(chunkname(filecount), 'w')
             chunkfile.write(header)
-    try:
+
+    if pagecount <= splitsize:
         chunkfile.write(footer)
         chunkfile.close()
-        if splitsize * (filecount - 1) + pagecount == 0:
-            print("No pages found for file " + filename +
-                  "! Probably there are either too few keywords/tags searched for or the wiki is small.")
-        elif args.verbosity_level > 0:
-            print(str(splitsize * (filecount - 1) + pagecount) + " pages found for file " + filename)
-    except:
-        print('File' + filename + ' is already closed.')
+    if splitsize * (filecount - 1) + pagecount == 0:
+        print("No pages found for file " + filename +
+              "! Probably there are either too few keywords/tags searched for or the wiki is small.")
+    elif args.verbosity_level > 0:
+        print(str(splitsize * (filecount - 1) + pagecount) + " pages found for file " + filename)
+
 
     # check if every title was found
     if len(titles_found) != len(keywords):
