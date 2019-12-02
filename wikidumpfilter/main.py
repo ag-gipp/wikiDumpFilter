@@ -1,80 +1,18 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-import argparse
 import bz2
 import os
 import re
-from html import unescape
 from os import path
 from sys import exit
-from urllib.request import Request, urlopen
+
+from wikidumpfilter.qid2title import get_titles_and_lang_from_qid
 
 
-def get_titles_and_lang_from_qid(qids, langs=None):
-    """Converts list of QIDs to a dictionary mapping language to it's corresponding titles, for all specified languages.
-    If no languages are specified, all languages available for a QID will be included.
-    Titles returned will be unescaped (e.g. "&#039;" becomes "'").
-    Only gets titles for languages named "enwiki", "dewiki",...; does not work for "enwikiquote", "enwikibooks",...!"""
-
-    if langs is None:
-        langs = []
-
-    def get_html_code(qid):
-        """returns html code from Wikidata"""
-
-        def open_url(url):
-            try:
-                req = Request(url)
-                http_response = urlopen(req)
-                return http_response
-            except Exception as e:
-                print("Error with url: " + url)
-                print(e)
-                print()
-
-        wikidata_url = 'https://www.wikidata.org/w/api.php?action=wbgetentities&format=xml&props=sitelinks&ids=' + qid
-
-        http_response_object = open_url(wikidata_url)
-        html_as_bytes = http_response_object.read()  # type: bytes
-        html_str = html_as_bytes.decode("utf8")  # type: str
-
-        return html_str
-
-    lang_with_titles = {}
-    for QID in qids:
-        # search html code and look for titles
-        html_code = get_html_code(QID)
-        html_code = html_code.split("\n")
-        for line in html_code:
-            if "<sitelink site=" in line:
-                wikis = re.findall('site=\"(.*?)\"', line)
-                titles = re.findall('title=\"(.*?)\"', line)
-
-                # exctract languages from wikis
-                wiki_languages = []
-                new_titles = []  # only includes titles from desired wikis
-                for i, wiki in enumerate(wikis):
-                    # only matches wikis named "enwiki", "dewiki",...; does not match "enwikiquote", "enwikibooks",...!
-                    if wiki.endswith('wiki'):
-                        wiki_languages.append(wiki[:-4])
-                        new_titles.append(titles[i])
-                titles = new_titles
-
-                for lang, title in zip(wiki_languages, titles):
-                    # languages == [] in case you want to get the titles of all languages
-                    if (lang in langs) or langs == []:
-                        if lang_with_titles.get(lang) is None:
-                            lang_with_titles[lang] = []
-                        unescaped_title = unescape(title)  # unescapes title, e.g. "&#039;" becomes "'"
-                        lang_with_titles[lang].append(unescaped_title)
-
-    return lang_with_titles
-
-
-def process_user_input(keywords, keyword_file, QID_file, filenames, tags, output_dir):
-    """Process arguments given as user input. E.g. reads keyword file (if specified) or translates QIDs from QID_file to keywords.
-    Also gives errors/notifications due to conflicting arguments given as input.
-    Furthermore it checks if the output_files already exist, so they won't be overwritten."""
+def process_user_input(keywords, keyword_file, QID_file, filenames, tags, output_dir, args):
+    """Process arguments given as user input. E.g. reads keyword file (if specified) or translates QIDs from QID_file
+    to keywords. Also gives errors/notifications due to conflicting arguments given as input. Furthermore it checks
+    if the output_files already exist, so they won't be overwritten. """
 
     # check if filenames provided are bz2-files
     for fn in filenames:
@@ -136,7 +74,7 @@ def process_user_input(keywords, keyword_file, QID_file, filenames, tags, output
                 QIDs.append(line)
             else:
                 notify_user = True
-                if args.verbosity_level > 1:
+                if args > 1:
                     print("Line without QID: " + line)
         if notify_user:
             print("Skipped one or multiple lines while reading QID_file, since the line(s) didn't match the regex "
@@ -173,7 +111,7 @@ def process_user_input(keywords, keyword_file, QID_file, filenames, tags, output
             print("File " + fn + " was already processed (thus '" + fn +
                   " chunk-1.xml.bz2' exists in the output directory " + output_dir + ") and will thus be not used!")
 
-    if args.verbosity_level > 0:
+    if args > 0:
         print("Using " + str(len(tags)) + " tags: " + str(tags))
         print("Using " + str(len(filenames)) + " files: " + str(filenames))
         print("Using " + str(len(keywords)) + " keywords(titles from QID_file not counted): " + str(keywords))
@@ -188,7 +126,7 @@ def process_user_input(keywords, keyword_file, QID_file, filenames, tags, output
     return tags, keywords, languages, lang_with_titles, filenames
 
 
-def split_xml(filename, splitsize, dir, tags, template, keywords):
+def split_xml(filename, splitsize, dir, tags, template, keywords, args):
     """ The function gets the filename (e.g. "enwiki-latest-pages-articles.xml.bz2") as input and creates
     one (or multiple) chunks of splitsize in the given directory. The chunks consist of every page that has either
     one of the given keywords or one of the given tags in it."""
@@ -219,17 +157,11 @@ def split_xml(filename, splitsize, dir, tags, template, keywords):
         header += line
         if '</siteinfo>' in line:
             break
-    if args.verbosity_level > 0:
+    if args > 0:
         print(header)
     chunkfile.write(header.encode('utf-8'))
     # and the rest
-    for line in bzfile:
-        try:
-            # probably faster to use python3 and specify encoding=utf8 in bz2.open()!  the bz2 module in python3 also
-            # supports multistreaming :)
-            line = line.decode("utf8")
-        except:
-            print("   Decoding-ERROR! In line: ", line)
+    for line in bz2.open(filename, mode='rt', encoding='utf-8'):
         if '<page' in line:
             tempstr = ""
             ismatch = 0
@@ -268,12 +200,12 @@ def split_xml(filename, splitsize, dir, tags, template, keywords):
                 tempstr = tempstr.encode("utf8")
                 chunkfile.write(tempstr)
                 tempstr = ""
-                if args.verbosity_level > 0:
+                if args > 0:
                     # print progress every 1000th page
                     if (splitsize * (filecount - 1) + pagecount - 1) % 1000 == 0:
                         print(str(splitsize * (filecount - 1) + pagecount) + "th page found in " + filename + ".")
         if pagecount > splitsize:
-            if args.verbosity_level > 1:
+            if args > 1:
                 print(
                     "New bz2-file number " + pagecount + " since number of matched pages reached splitsize = " + splitsize)
             chunkfile.write(footer)
@@ -289,9 +221,8 @@ def split_xml(filename, splitsize, dir, tags, template, keywords):
     if splitsize * (filecount - 1) + pagecount == 0:
         print("No pages found for file " + filename +
               "! Probably there are either too few keywords/tags searched for or the wiki is small.")
-    elif args.verbosity_level > 0:
+    elif args > 0:
         print(str(splitsize * (filecount - 1) + pagecount) + " pages found for file " + filename)
-
 
     # check if every title was found
     if len(titles_found) != len(keywords):
@@ -312,52 +243,4 @@ def split_xml(filename, splitsize, dir, tags, template, keywords):
                 except Exception as e:
                     print(e)
 
-
-if __name__ == '__main__':  # When the script is self run
-    parser = argparse.ArgumentParser(description='Extract wikipages that contain the math tag.',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-f', '--filename',
-                        help='The bz2-file(s) to be split and filtered. You may use one/multiple file(s) or e.g. '
-                             '"*.bz2" as input.',
-                        default=['enwiki-latest-pages-articles.xml.bz2'], dest='filenames', nargs='*')
-    parser.add_argument('-s', '--splitsize', help='The number of pages contained in each split.',
-                        default=1000000, type=int, dest='size')
-    parser.add_argument('-d', '--outputdir', help='The directory name where the files go.',
-                        default='wout', type=str, dest='dir')
-    parser.add_argument('-t', '--tagname', help='Tags to search for, e.g. use    -t TAG1 TAG2 TAG3',
-                        default=['math', 'ce', 'chem', 'math chem'], type=str, dest='tags', nargs='*')
-    parser.add_argument('-k', '--keyword',
-                        help='Keywords to search for, e.g. use    -k KEYWORD1 KEYWORD2 KEYWORD3   You might want to '
-                             'disable tags = specify empty tags (""), if you don`t want pages containing a tag OR a '
-                             'keyword!',
-                        default=[], type=str, dest='keywords', nargs='*')
-    parser.add_argument('-K', '--keyword_file',
-                        help='Another way to specify keywords. Use a keyword file containing one keyword (e.g. '
-                             '"<title>formulae</title>") in each line.',
-                        default='', type=str, dest='keyword_file')
-    parser.add_argument('-Q', '--QID_file',
-                        help='QID-file, containing one QID (e.g. "Q1234") in each line. They will be translated to '
-                             'the titles in their respective languages and "<title>SOME_TITLE</title>" will be used '
-                             'as keywords. Specify languages with "-l". The languages will be taken from the '
-                             'beginning of the filenames, which thus must start with "enwiki"/"dewiki"/... for '
-                             'english/german/... !',
-                        default='', type=str, dest='QID_file')
-    parser.add_argument("-v", "--verbosity", action="count", default=0, dest='verbosity_level')
-    parser.add_argument('-T', '--template', help='Include all templates.',
-                        action="store_true", dest='template')  # default=False
-    args = parser.parse_args()
-
-    tags, keywords, languages, lang_with_titles, filenames = process_user_input(args.keywords, args.keyword_file,
-                                                                                args.QID_file, args.filenames,
-                                                                                args.tags, args.dir)
-
-    for filename in filenames:
-        language = filename.split("wiki")[0]
-
-        current_keywords = keywords[:]
-        if args.QID_file != '':
-            current_keywords += lang_with_titles[language]  # add titles as keywords
-
-        split_xml(filename, args.size, args.dir, tags, args.template, current_keywords)
-exit(0)
 # todo: Remove found titles from keywords to speed the program up ~2 times.
