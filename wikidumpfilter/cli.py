@@ -59,6 +59,19 @@ def main():
     parser_link.add_argument('-m', '--multistream', action="store_false")
     parser_link.set_defaults(func=make_links)
 
+    parser_down = subparsers.add_parser('down',
+                                        help=''''Downloads all wiki-Dumps, except the ones already stored in the 
+                                        given directory(does not include subdirectories). You may want to manually 
+                                        delete/move them if you want the program to download them too.''',
+                                        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_down.add_argument('-d', '--io_dir',
+                             help='The input & output directory name, where (possibly) existing dumps are and '
+                                  'downloaded '
+                                  'ones should be stored. Defaults to current directory.',
+                             default='./', type=str, dest='io_dir')
+    parser_down.add_argument('-m', '--multistream', default=False)
+    parser_down.set_defaults(func=download.down)
+
     args = parser.parse_args()
     if 'func' in args:
         args.func(args)

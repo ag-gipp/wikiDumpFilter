@@ -3,7 +3,7 @@
 import argparse
 import os
 from pathlib import Path
-from wikidumpfilter.constants import language_codes
+from wikidumpfilter.languages import language_codes, get_unprocessed_languages
 
 
 def make_links(args):
@@ -14,16 +14,7 @@ def make_links(args):
         os.mkdir(complete_dir_path)
 
     # remove already linked files from list (=>manually delete files where you want to relink them)
-    removed_languages = 0
-    for lang in language_codes:
-        for root, directories, f_names in os.walk(args.output_dir):
-            for filename in f_names:
-                if filename.startswith(lang + "wiki") and filename.endswith(".bz2"):
-                    language_codes.remove(lang)
-                    removed_languages += 1
-                    if args.verbosity_level > 0:
-                        print("Skipping language " + lang + ", since " + filename + " already exists!")
-            break  # don't search in subdirectories
+    removed_languages = get_unprocessed_languages(args.output_dir, args.verbosity_level)
 
     # download
     num_of_downloads = 0
